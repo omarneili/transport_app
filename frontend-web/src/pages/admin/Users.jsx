@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Trash2, UserPlus, Loader2, Search, Lock, X } from 'lucide-react';
+import { Edit2, Trash2, UserPlus, Loader2, Search, Lock, Unlock, X } from 'lucide-react';
 import './Users.css';
 
 const Users = () => {
@@ -67,6 +67,36 @@ const Users = () => {
             }
 
             setUsers(prevUsers => prevUsers.filter(user => user.id_utilisateur !== id_utilisateur));
+
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleToggleBlock = async (id_utilisateur, estBloqueActuellement) => {
+        const actionText = estBloqueActuellement ? "débloquer" : "bloquer";
+        if (!window.confirm(`Êtes-vous sûr de vouloir ${actionText} cet utilisateur ?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/users/${id_utilisateur}/block`, {
+                method: 'PUT',
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || `Erreur lors du ${actionText} de l'utilisateur`);
+            }
+
+            const data = await response.json();
+            
+            // Mettre à jour la liste des utilisateurs pour refléter le nouveau statut
+            setUsers(prevUsers => prevUsers.map(user => 
+                user.id_utilisateur === id_utilisateur ? { ...user, est_bloque: !estBloqueActuellement } : user
+            ));
+            
+            alert(data.message);
 
         } catch (err) {
             alert(err.message);
@@ -173,7 +203,14 @@ const Users = () => {
                                                         <span className="user-name">{user.nom}</span>
                                                     </div>
                                                 </td>
-                                                <td className="user-name" style={{ color: '#64748b', fontWeight: 500 }}>{user.prenom}</td>
+                                                <td className="user-name" style={{ color: '#64748b', fontWeight: 500 }}>
+                                                    {user.prenom}
+                                                    {user.est_bloque && (
+                                                        <span style={{ marginLeft: '8px', color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                            (Bloqué)
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td>
                                                     <span className="user-email">{user.email || '—'}</span>
                                                 </td>
@@ -188,8 +225,12 @@ const Users = () => {
                                                 </td>
                                                 <td>
                                                     <div className="row-actions">
-                                                        <button title="Restreindre" className="action-btn btn-lock">
-                                                            <Lock size={16} />
+                                                        <button 
+                                                            title={user.est_bloque ? "Débloquer" : "Restreindre"} 
+                                                            className={`action-btn btn-lock ${user.est_bloque ? 'is-blocked' : ''}`}
+                                                            onClick={() => handleToggleBlock(user.id_utilisateur, user.est_bloque)}
+                                                        >
+                                                            {user.est_bloque ? <Unlock size={16} color="#ef4444" /> : <Lock size={16} />}
                                                         </button>
                                                         <button title="Éditer" className="action-btn btn-edit">
                                                             <Edit2 size={16} />

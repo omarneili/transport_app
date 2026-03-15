@@ -4,7 +4,8 @@ const db = require('../config/db');
 exports.getUsers = async (req, res) => {
     try {
         const result = await db.query(
-            'SELECT id_utilisateur, nom, prenom, matricule, email,num_tel, role FROM utilisateur ORDER BY nom ASC'
+            'SELECT id_utilisateur, nom, prenom, matricule, email, num_tel, role, est_bloque FROM utilisateur ORDER BY nom ASC'
+
         );
         res.json(result.rows);
     } catch (err) {
@@ -61,25 +62,55 @@ exports.createUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
     try {
         const userId = req.params.id;
-        
+
         // Empêcher la suppression d'un utilisateur introuvable
         const userCheck = await db.query('SELECT role FROM utilisateur WHERE id_utilisateur = $1', [userId]);
-        
+
         if (userCheck.rows.length === 0) {
             return res.status(404).json({ message: "Utilisateur introuvable." });
         }
-        
+
         // Optionnel : Empêcher la suppression des administrateurs
         if (userCheck.rows[0].role === 'admin' || userCheck.rows[0].role === 'ADMIN') {
-             // return res.status(403).json({ message: "Impossible de supprimer un administrateur." });
+            // return res.status(403).json({ message: "Impossible de supprimer un administrateur." });
         }
 
         // Suppression de la base de données
         await db.query('DELETE FROM utilisateur WHERE id_utilisateur = $1', [userId]);
-        
+
         res.status(200).json({ message: "Utilisateur supprimé avec succès." });
     } catch (error) {
         console.error('Erreur lors de la suppression de l\'utilisateur:', error);
         res.status(500).json({ message: "Erreur serveur lors de la suppression." });
     }
 };
+exports.toggleBlockUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const userCheck = await db.query('SELECT role, est_bloque FROM utilisateur WHERE id_utilisateur = $1', [userId]);
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ message: "Utilisateur introuvable." });
+        }
+
+        if (userCheck.rows[0].role === 'ADMIN' || userCheck.rows[0].role === 'admin') {
+            return res.status(403).json({ message: "Impossible de bloquer un administrateur." });
+        }
+
+        const result = await db.query(
+            'UPDATE utilisateur SET est_bloque = NOT est_bloque WHERE id_utilisateur = $1 RETURNING id_utilisateur, nom, prenom, role, est_bloque',
+            [userId]
+        );
+
+        res.status(200).json({
+            message: result.rows[0].est_bloque ? "Utilisateur bloqué avec succès." : "Utilisateur débloqué avec succès.",
+            user: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Erreur lors du blocage/déblocage de l\'utilisateur:', error);
+        res.status(500).json({ message: "Erreur serveur." });
+    }
+};
+
+

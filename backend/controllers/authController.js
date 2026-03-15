@@ -33,6 +33,10 @@ exports.loginAgent = async (req, res) => {
         if (password !== user.mot_de_passe) {
             return res.status(401).json({ message: 'Mot de passe incorrect' });
         }
+        if (user.est_bloque) {
+            return res.status(403).json({ message: "Votre compte a été suspendu par un administrateur." });
+        }
+
         const token = jwt.sign({ id: user.id_utilisateur, role: 'AGENT' }, process.env.JWT_SECRET, { expiresIn: '1d' });
         res.json({ token, user: { id: user.id_utilisateur, matricule: user.matricule, nom: user.nom, prenom: user.prenom, role: 'AGENT' } });
     } catch (err) {

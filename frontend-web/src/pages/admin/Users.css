@@ -252,6 +252,12 @@ tr:hover .row-actions {
     border-color: #fef3c7;
 }
 
+.btn-lock.is-blocked:hover {
+    color: #dc2626;
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
 .btn-edit:hover {
     color: #2563eb;
     background: #eff6ff;
