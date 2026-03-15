@@ -1,0 +1,41 @@
+const db = require('../config/db');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
+exports.loginAdmin = async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        // Note: I'm using 'matricule' to search for the admin if email is not in schema, 
+        // but I'll update the logic to support an 'email' field as requested for login.
+        const result = await db.query('SELECT * FROM utilisateur WHERE (email = $1 OR matricule = $1) AND role = \'ADMIN\'', [email]);
+        if (result.rows.length === 0) {
+            return res.status(401).json({ message: 'Identifiants invalides' });
+        }
+        const user = result.rows[0];
+        if (password !== user.mot_de_passe) {
+            return res.status(401).json({ message: 'Mot de passe incorrect' });
+        }
+        const token = jwt.sign({ id: user.id_utilisateur, role: 'ADMIN' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        res.json({ token, user: { id: user.id_utilisateur, nom: user.nom, prenom: user.prenom, role: 'ADMIN' } });
+    } catch (err) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+};
+
+exports.loginAgent = async (req, res) => {
+    const { matricule, password } = req.body;
+    try {
+        const result = await db.query('SELECT * FROM utilisateur WHERE matricule = $1 AND role = \'AGENT\'', [matricule]);
+        if (result.rows.length === 0) {
+            return res.status(401).json({ message: 'Matricule invalide' });
+        }
+        const user = result.rows[0];
+        if (password !== user.mot_de_passe) {
+            return res.status(401).json({ message: 'Mot de passe incorrect' });
+        }
+        const token = jwt.sign({ id: user.id_utilisateur, role: 'AGENT' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        res.json({ token, user: { id: user.id_utilisateur, matricule: user.matricule, nom: user.nom, prenom: user.prenom, role: 'AGENT' } });
+    } catch (err) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+};

@@ -1,0 +1,298 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Edit2, Trash2, UserPlus, Loader2, Search, Lock, X } from 'lucide-react';
+import './Users.css';
+
+const Users = () => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formError, setFormError] = useState(null);
+    const [newUser, setNewUser] = useState({
+        nom: '', prenom: '', email: '', matricule: '', num_tel: '', role: 'AGENT', mot_de_passe: ''
+    });
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewUser(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleOpenModal = () => setIsAddModalOpen(true);
+    const handleCloseModal = () => {
+        setIsAddModalOpen(false);
+        setFormError(null);
+        setNewUser({ nom: '', prenom: '', email: '', matricule: '', num_tel: '', role: 'AGENT', mot_de_passe: '' });
+    };
+
+    const handleAddUser = async (e) => {
+        e.preventDefault();
+        setFormError(null);
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('http://localhost:5000/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newUser)
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Erreur lors de la création');
+            }
+            const createdUser = await response.json();
+            setUsers(prev => [...prev, createdUser]);
+            handleCloseModal();
+        } catch (err) {
+            setFormError(err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteUser = async (id_utilisateur) => {
+        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.")) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/users/${id_utilisateur}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Erreur lors de la suppression');
+            }
+
+            setUsers(prevUsers => prevUsers.filter(user => user.id_utilisateur !== id_utilisateur));
+
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const fetchUsers = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch('http://localhost:5000/api/users');
+            if (!response.ok) throw new Error('Erreur de chargement');
+            const data = await response.json();
+            setUsers(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, []);
+
+    const getRoleBadge = (role) => {
+        const r = role.toLowerCase();
+        const roleClass = r === 'admin' ? 'badge-admin' : r === 'agent' ? 'badge-agent' : 'badge-receveur';
+        return (
+            <span className={`role-badge ${roleClass}`}>
+                {r}
+            </span>
+        );
+    };
+
+    const filteredUsers = users.filter(user =>
+        `${user.nom} ${user.prenom} ${user.email} ${user.num_tel} ${user.matricule}`.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return (
+        <>
+            <div className="users-container">
+                {/* Header Section */}
+                <div className="users-header-card">
+                    <div className="header-titles">
+                        <h1>Gestion des Collaborateurs</h1>
+                        <p>Interface d'administration des accès et profils utilisateurs</p>
+                    </div>
+
+                    <div className="header-actions">
+                        <div className="search-wrapper">
+                            <Search className="search-icon" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Rechercher par nom, email..."
+                                className="search-input"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+
+                        </div>
+                        <button className="btn-add-user" onClick={handleOpenModal}>
+                            <UserPlus size={18} />
+                            <span>Ajouter un compte</span>
+                        </button>
+
+                    </div>
+                </div>
+
+                {/* Table Section */}
+                <div className="users-table-card">
+                    {loading ? (
+                        <div className="loading-state">
+                            <Loader2 className="animate-spin" size={40} />
+                            <p>Synchronisation en cours...</p>
+                        </div>
+                    ) : (
+                        <div className="table-responsive">
+                            <table className="enterprise-table">
+                                <thead>
+                                    <tr>
+                                        <th>nom</th>
+                                        <th>Prénom</th>
+                                        <th>Email</th>
+                                        <th>Matricule</th>
+                                        <th>Téléphone</th>
+                                        <th>Rôle système</th>
+                                        <th style={{ textAlign: 'center' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <AnimatePresence mode="popLayout">
+                                        {filteredUsers.length > 0 ? filteredUsers.map((user) => (
+                                            <motion.tr
+                                                key={user.id_utilisateur}
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                            >
+                                                <td>
+                                                    <div className="user-info-cell">
+                                                        <div className="user-avatar">
+                                                            {user.nom.charAt(0)}{user.prenom.charAt(0)}
+                                                        </div>
+                                                        <span className="user-name">{user.nom}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="user-name" style={{ color: '#64748b', fontWeight: 500 }}>{user.prenom}</td>
+                                                <td>
+                                                    <span className="user-email">{user.email || '—'}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="user-matricule">
+                                                        {user.matricule || 'N/A'}
+                                                    </span>
+                                                </td>
+                                                <td> {user.num_tel}</td>
+                                                <td>
+                                                    {getRoleBadge(user.role)}
+                                                </td>
+                                                <td>
+                                                    <div className="row-actions">
+                                                        <button title="Restreindre" className="action-btn btn-lock">
+                                                            <Lock size={16} />
+                                                        </button>
+                                                        <button title="Éditer" className="action-btn btn-edit">
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        <button title="Supprimer" className="action-btn btn-trash" onClick={() => handleDeleteUser(user.id_utilisateur)}>
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </motion.tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan="6" className="empty-state">
+                                                    <div className="flex flex-col items-center opacity-40">
+                                                        <Search size={40} className="mb-3" />
+                                                        <p className="font-semibold">Aucun utilisateur correspondant</p>
+                                                        <p className="text-sm">Veuillez ajuster vos critères de recherche.</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </AnimatePresence>
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                <AnimatePresence>
+                    {isAddModalOpen && (
+                        <motion.div
+                            className="modal-overlay"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onPointerDown={handleCloseModal}
+                            key="modal-overlay"
+                        >
+                            <motion.div
+                                className="modal-content"
+                                initial={{ y: 50, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                exit={{ y: 50, opacity: 0 }}
+                                onPointerDown={e => e.stopPropagation()}
+                                onClick={e => e.stopPropagation()}
+                                key="modal-content"
+                            >
+                                <div className="modal-header">
+                                    <h2>Ajouter un nouvel utilisateur</h2>
+                                    <button type="button" className="btn-close" onClick={handleCloseModal}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <form onSubmit={handleAddUser}>
+                                    <div className="modal-body">
+                                        {formError && <div className="form-error">{formError}</div>}
+                                        <div className="form-group">
+                                            <label>Nom</label>
+                                            <input type="text" name="nom" required className="form-input" value={newUser.nom} onChange={handleInputChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Prénom</label>
+                                            <input type="text" name="prenom" required className="form-input" value={newUser.prenom} onChange={handleInputChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Email</label>
+                                            <input type="email" name="email" required className="form-input" value={newUser.email} onChange={handleInputChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Matricule</label>
+                                            <input type="text" name="matricule" required className="form-input" value={newUser.matricule} onChange={handleInputChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Téléphone</label>
+                                            <input type="tel" name="num_tel" required className="form-input" value={newUser.num_tel} onChange={handleInputChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Rôle</label>
+                                            <select name="role" className="form-select" value={newUser.role} onChange={handleInputChange}>
+                                                <option value="ADMIN">Admin</option>
+                                                <option value="AGENT">Agent</option>
+                                                <option value="RECEVEUR">Receveur</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Mot de passe</label>
+                                            <input type="password" name="mot_de_passe" required className="form-input" value={newUser.mot_de_passe} onChange={handleInputChange} minLength="6" />
+                                        </div>
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button type="button" className="btn-cancel" onClick={handleCloseModal} disabled={isSubmitting}>Annuler</button>
+                                        <button type="submit" className="btn-submit" disabled={isSubmitting}>
+                                            {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : 'Créer le compte'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </>
+    );
+};
+
+export default Users;

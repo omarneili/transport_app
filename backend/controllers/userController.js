@@ -1,0 +1,85 @@
+const db = require('../config/db');
+
+// Récupérer tous les utilisateurs
+exports.getUsers = async (req, res) => {
+    try {
+        const result = await db.query(
+            'SELECT id_utilisateur, nom, prenom, matricule, email,num_tel, role FROM utilisateur ORDER BY nom ASC'
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Erreur getUsers:', err);
+        res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs' });
+    }
+};
+exports.getUserCount = async (req, res) => {
+    try {
+        const result = await db.query(
+            "SELECT COUNT(*) FROM utilisateur WHERE role != 'admin'"
+        );
+        res.json({ count: parseInt(result.rows[0].count) });
+    } catch (err) {
+        console.error('Erreur getUserCount:', err);
+        res.status(500).json({ message: 'Erreur lors du comptage des utilisateurs' });
+    }
+};
+exports.createUser = async (req, res) => {
+    try {
+        const { nom, prenom, email, matricule, num_tel, role, mot_de_passe } = req.body;
+        const emailCheck = await db.query('SELECT * FROM utilisateur WHERE email = $1', [email]);
+        if (emailCheck.rows.length > 0) {
+            return res.status(400).json({ message: "Cet email est déjà utilisé par un autre utilisateur." });
+        }
+
+        const matriculeCheck = await db.query('SELECT * FROM utilisateur WHERE matricule = $1', [matricule]);
+        if (matriculeCheck.rows.length > 0) {
+            return res.status(400).json({ message: "Ce matricule est déjà attribué." });
+        }
+
+        const telCheck = await db.query('SELECT * FROM utilisateur WHERE num_tel = $1', [num_tel]);
+        if (telCheck.rows.length > 0) {
+            return res.status(400).json({ message: "Ce numéro de téléphone est déjà enregistré." });
+        }
+
+        const newUserQuery = `
+            INSERT INTO utilisateur (nom, prenom, email, matricule, num_tel, role, mot_de_passe)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *;
+        `;
+
+        const values = [nom, prenom, email, matricule, num_tel, role, mot_de_passe];
+        const result = await db.query(newUserQuery, values);
+
+        res.status(201).json(result.rows[0]);
+
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'utilisateur:', error);
+        res.status(500).json({ message: 'Erreur serveur lors de la création de l\'utilisateur.' });
+    }
+};
+
+exports.deleteUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // Empêcher la suppression d'un utilisateur introuvable
+        const userCheck = await db.query('SELECT role FROM utilisateur WHERE id_utilisateur = $1', [userId]);
+        
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ message: "Utilisateur introuvable." });
+        }
+        
+        // Optionnel : Empêcher la suppression des administrateurs
+        if (userCheck.rows[0].role === 'admin' || userCheck.rows[0].role === 'ADMIN') {
+             // return res.status(403).json({ message: "Impossible de supprimer un administrateur." });
+        }
+
+        // Suppression de la base de données
+        await db.query('DELETE FROM utilisateur WHERE id_utilisateur = $1', [userId]);
+        
+        res.status(200).json({ message: "Utilisateur supprimé avec succès." });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+        res.status(500).json({ message: "Erreur serveur lors de la suppression." });
+    }
+};
